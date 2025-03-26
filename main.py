@@ -2,7 +2,7 @@ import os
 import requests
 from bs4 import BeautifulSoup
 from flask import Flask, request
-from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 from apscheduler.schedulers.background import BackgroundScheduler
 import pytz
@@ -52,8 +52,11 @@ def get_viada_prices():
         cols = row.find_all("td")
         if len(cols) >= 2:
             fuel = cols[0].get_text(strip=True).lower()
-            price = cols[1].get_text(strip=True).replace("€", "").replace(",", ".")
-            prices[fuel] = float(price)
+            price = cols[1].get_text(strip=True).replace("€", "").replace("EUR", "").replace(",", ".").strip()
+            try:
+                prices[fuel] = float(price)
+            except ValueError:
+                continue
     return prices
 
 def get_virsi_prices():
@@ -110,6 +113,11 @@ def compare_fuel_type(fuel_type):
 
 dispatcher = Dispatcher(bot, None, workers=0, use_context=True)
 
+def start_command(update, context):
+    keyboard = [["/prices", "/compare"]]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    update.message.reply_text("Привет! Выбери команду ниже:", reply_markup=reply_markup)
+
 def prices_command(update, context):
     summary = get_fuel_summary()
     context.bot.send_message(chat_id=update.effective_chat.id, text=f"⛽ Цены на топливо:\n\n{summary}")
@@ -130,6 +138,7 @@ def button_handler(update, context):
     result = compare_fuel_type(fuel_type)
     query.edit_message_text(result)
 
+dispatcher.add_handler(CommandHandler("start", start_command))
 dispatcher.add_handler(CommandHandler("prices", prices_command))
 dispatcher.add_handler(CommandHandler("compare", compare_command))
 dispatcher.add_handler(CallbackQueryHandler(button_handler))
