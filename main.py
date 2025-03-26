@@ -52,18 +52,14 @@ def start_command(update, context):
 
 def price_command(update, context):
     summary = get_fuel_summary()
-    context.bot.send_message(chat_id=update.effective_chat.id, text=f"⛽ Цены на топливо:
-
-{summary}")
+    context.bot.send_message(chat_id=update.effective_chat.id, text=f"⛽ Цены на топливо:\n\n{summary}")
 
 dispatcher.add_handler(CommandHandler("start", start_command))
 dispatcher.add_handler(CommandHandler("cena", price_command))
 
 def send_daily_summary():
     summary = get_fuel_summary()
-    bot.send_message(chat_id=CHAT_ID, text=f"⛽ Ежедневная сводка цен:
-
-{summary}")
+    bot.send_message(chat_id=CHAT_ID, text=f"⛽ Ежедневная сводка цен:\n\n{summary}")
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(send_daily_summary, "cron", hour=7, timezone=pytz.UTC)
