@@ -2,8 +2,8 @@ import os
 import requests
 from bs4 import BeautifulSoup
 from flask import Flask, request
-from telegram import Bot, Update
-from telegram.ext import Dispatcher, CommandHandler
+from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 from apscheduler.schedulers.background import BackgroundScheduler
 import pytz
 
@@ -76,13 +76,12 @@ def get_virsi_prices():
     return prices
 
 def collect_all_prices():
-    sources = {
+    return {
         "Neste": get_neste_prices(),
         "Circle K": get_circlek_prices(),
         "Viada": get_viada_prices(),
         "Virši": get_virsi_prices()
     }
-    return sources
 
 def get_fuel_summary():
     data = collect_all_prices()
@@ -107,7 +106,7 @@ def compare_fuel_type(fuel_type):
                     best_source = source
     if best_price is not None:
         return f"💰 Самая низкая цена на {fuel_type} у {best_source} — {best_price:.3f} EUR"
-    return f"⚠️ Не удалось найти цены на "{fuel_type}"."
+    return f"⚠️ Не удалось найти цены на '{fuel_type}'."
 
 dispatcher = Dispatcher(bot, None, workers=0, use_context=True)
 
@@ -116,15 +115,24 @@ def prices_command(update, context):
     context.bot.send_message(chat_id=update.effective_chat.id, text=f"⛽ Цены на топливо:\n\n{summary}")
 
 def compare_command(update, context):
-    if context.args:
-        fuel = " ".join(context.args)
-        result = compare_fuel_type(fuel)
-        update.message.reply_text(result)
-    else:
-        update.message.reply_text("⚙️ Укажи топливо, например: /compare 95 или /compare dīzeļdegviela")
+    keyboard = [
+        [InlineKeyboardButton("⛽ 95", callback_data='compare_95')],
+        [InlineKeyboardButton("⛽ 98", callback_data='compare_98')],
+        [InlineKeyboardButton("⛽ Dīzeļdegviela", callback_data='compare_dīzeļdegviela')],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    update.message.reply_text("Выбери топливо для сравнения:", reply_markup=reply_markup)
+
+def button_handler(update, context):
+    query = update.callback_query
+    query.answer()
+    fuel_type = query.data.replace("compare_", "")
+    result = compare_fuel_type(fuel_type)
+    query.edit_message_text(result)
 
 dispatcher.add_handler(CommandHandler("prices", prices_command))
 dispatcher.add_handler(CommandHandler("compare", compare_command))
+dispatcher.add_handler(CallbackQueryHandler(button_handler))
 
 def send_daily_summary():
     summary = get_fuel_summary()
