@@ -1,7 +1,3 @@
-print("Neste:", get_neste_prices())
-print("Circle K:", get_circlek_prices())
-print("Viada:", get_viada_prices())
-print("Virši:", get_virsi_prices())
 import os
 import requests
 from bs4 import BeautifulSoup
@@ -19,75 +15,73 @@ bot = Bot(token=TOKEN)
 app = Flask(__name__)
 
 def get_neste_prices():
-    url = "https://www.neste.lv/lv/content/degvielas-cenas"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    response = requests.get(url, headers=headers)
-    soup = BeautifulSoup(response.text, "html.parser")
-    table = soup.find("table")
-    rows = table.find_all("tr")[1:]
-    prices = {}
-    for row in rows:
-        cols = row.find_all("td")
-        if len(cols) >= 2:
-            fuel = cols[0].get_text(strip=True).lower()
-            price = cols[1].get_text(strip=True).replace(" EUR", "").replace(",", ".")
-            prices[fuel] = float(price)
-    return prices
+    try:
+        url = "https://www.neste.lv/lv/content/degvielas-cenas"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers)
+        soup = BeautifulSoup(response.text, "html.parser")
+        table = soup.find("table")
+        rows = table.find_all("tr")[1:]
+        prices = {}
+        for row in rows:
+            cols = row.find_all("td")
+            if len(cols) >= 2:
+                fuel = cols[0].get_text(strip=True).lower()
+                price = cols[1].get_text(strip=True).replace(" EUR", "").replace(",", ".")
+                prices[fuel] = float(price)
+        return prices
+    except Exception as e:
+        print("Neste error:", e)
+        return {}
 
 def get_circlek_prices():
-    url = "https://www.circlek.lv/degviela-miles/degvielas-cenas"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    response = requests.get(url, headers=headers)
-    soup = BeautifulSoup(response.text, "html.parser")
-    prices = {}
-    for block in soup.select(".fuel-price-item"):
-        fuel = block.select_one(".fuel-price-title").get_text(strip=True).lower()
-        price = block.select_one(".fuel-price-number").get_text(strip=True).replace("€", "").replace(",", ".")
-        prices[fuel] = float(price)
-    return prices
-
-def get_viada_prices():
-    url = "https://www.viada.lv/zemakas-degvielas-cenas"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    response = requests.get(url, headers=headers)
-    soup = BeautifulSoup(response.text, "html.parser")
-    prices = {}
-    for row in soup.select("table tr")[1:]:
-        cols = row.find_all("td")
-        if len(cols) >= 2:
-            fuel = cols[0].get_text(strip=True).lower()
-            price = cols[1].get_text(strip=True).replace("€", "").replace("EUR", "").replace(",", ".").strip()
-            try:
-                prices[fuel] = float(price)
-            except ValueError:
-                continue
-    return prices
-
-def get_virsi_prices():
-    url = "https://www.virsi.lv/lv/privatpersonam/degviela/degvielas-un-elektrouzlades-cenas"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    response = requests.get(url, headers=headers)
-    soup = BeautifulSoup(response.text, "html.parser")
-    prices = {}
-    for block in soup.select(".views-row"):
-        fuel_block = block.select_one(".field-content")
-        if fuel_block:
-            lines = fuel_block.get_text("\n", strip=True).split("\n")
-            if len(lines) >= 2:
-                fuel = lines[0].lower()
-                price = lines[1].replace("EUR", "").replace(",", ".").strip()
+    try:
+        url = "https://www.circlek.lv/degviela-miles/degvielas-cenas"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers)
+        soup = BeautifulSoup(response.text, "html.parser")
+        prices = {}
+        for block in soup.select(".fuel-price-item"):
+            fuel_el = block.select_one(".fuel-price-title")
+            price_el = block.select_one(".fuel-price-number")
+            if fuel_el and price_el:
+                fuel = fuel_el.get_text(strip=True).lower()
+                price = price_el.get_text(strip=True).replace("€", "").replace(",", ".")
                 try:
                     prices[fuel] = float(price)
-                except:
+                except ValueError:
                     continue
-    return prices
+        return prices
+    except Exception as e:
+        print("Circle K error:", e)
+        return {}
+
+def get_viada_prices():
+    try:
+        url = "https://www.viada.lv/zemakas-degvielas-cenas"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers)
+        soup = BeautifulSoup(response.text, "html.parser")
+        prices = {}
+        for row in soup.select("table tr")[1:]:
+            cols = row.find_all("td")
+            if len(cols) >= 2:
+                fuel = cols[0].get_text(strip=True).lower()
+                price = cols[1].get_text(strip=True).replace("€", "").replace("EUR", "").replace(",", ".").strip()
+                try:
+                    prices[fuel] = float(price)
+                except ValueError:
+                    continue
+        return prices
+    except Exception as e:
+        print("Viada error:", e)
+        return {}
 
 def collect_all_prices():
     return {
         "Neste": get_neste_prices(),
         "Circle K": get_circlek_prices(),
-        "Viada": get_viada_prices(),
-        "Virši": get_virsi_prices()
+        "Viada": get_viada_prices()
     }
 
 def get_fuel_summary():
@@ -95,6 +89,8 @@ def get_fuel_summary():
     summary = []
     for source, fuels in data.items():
         summary.append(f"🏷 {source}")
+        if not fuels:
+            summary.append("• Нет данных.")
         for name, price in fuels.items():
             summary.append(f"• {name.capitalize()}: {price:.3f} EUR")
         summary.append("")
