@@ -1,3 +1,7 @@
+print("Neste:", get_neste_prices())
+print("Circle K:", get_circlek_prices())
+print("Viada:", get_viada_prices())
+print("Virši:", get_virsi_prices())
 import os
 import requests
 from bs4 import BeautifulSoup
