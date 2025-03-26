@@ -2,8 +2,8 @@ import os
 import requests
 from bs4 import BeautifulSoup
 from flask import Flask, request
-from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
-from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
+from telegram import Bot, Update, ReplyKeyboardMarkup
+from telegram.ext import Dispatcher, CommandHandler
 from apscheduler.schedulers.background import BackgroundScheduler
 import pytz
 
@@ -34,121 +34,39 @@ def get_neste_prices():
         print("Neste error:", e)
         return {}
 
-def get_circlek_prices():
-    try:
-        url = "https://www.circlek.lv/degviela-miles/degvielas-cenas"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        response = requests.get(url, headers=headers)
-        soup = BeautifulSoup(response.text, "html.parser")
-        prices = {}
-        for block in soup.select(".fuel-price-item"):
-            fuel_el = block.select_one(".fuel-price-title")
-            price_el = block.select_one(".fuel-price-number")
-            if fuel_el and price_el:
-                fuel = fuel_el.get_text(strip=True).lower()
-                price = price_el.get_text(strip=True).replace("€", "").replace(",", ".")
-                try:
-                    prices[fuel] = float(price)
-                except ValueError:
-                    continue
-        return prices
-    except Exception as e:
-        print("Circle K error:", e)
-        return {}
-
-def get_viada_prices():
-    try:
-        url = "https://www.viada.lv/zemakas-degvielas-cenas"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        response = requests.get(url, headers=headers)
-        soup = BeautifulSoup(response.text, "html.parser")
-        prices = {}
-        for row in soup.select("table tr")[1:]:
-            cols = row.find_all("td")
-            if len(cols) >= 2:
-                fuel = cols[0].get_text(strip=True).lower()
-                price = cols[1].get_text(strip=True).replace("€", "").replace("EUR", "").replace(",", ".").strip()
-                try:
-                    prices[fuel] = float(price)
-                except ValueError:
-                    continue
-        return prices
-    except Exception as e:
-        print("Viada error:", e)
-        return {}
-
-def collect_all_prices():
-    return {
-        "Neste": get_neste_prices(),
-        "Circle K": get_circlek_prices(),
-        "Viada": get_viada_prices()
-    }
-
 def get_fuel_summary():
-    data = collect_all_prices()
-    summary = []
-    for source, fuels in data.items():
-        summary.append(f"🏷 {source}")
-        if not fuels:
-            summary.append("• Нет данных.")
-        for name, price in fuels.items():
-            summary.append(f"• {name.capitalize()}: {price:.3f} EUR")
-        summary.append("")
+    data = get_neste_prices()
+    summary = ["🏷 Neste"]
+    if not data:
+        summary.append("• Нет данных.")
+    for name, price in data.items():
+        summary.append(f"• {name.capitalize()}: {price:.3f} EUR")
     return "\n".join(summary)
-
-def compare_fuel_type(fuel_type):
-    fuel_type = fuel_type.lower()
-    data = collect_all_prices()
-    best_price = None
-    best_source = None
-    for source, fuels in data.items():
-        for name, price in fuels.items():
-            if fuel_type in name:
-                if best_price is None or price < best_price:
-                    best_price = price
-                    best_source = source
-    if best_price is not None:
-        return f"💰 Самая низкая цена на {fuel_type} у {best_source} — {best_price:.3f} EUR"
-    return f"⚠️ Не удалось найти цены на '{fuel_type}'."
 
 dispatcher = Dispatcher(bot, None, workers=0, use_context=True)
 
 def start_command(update, context):
-    keyboard = [["/prices", "/compare"]]
+    keyboard = [["/cena"]]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-    update.message.reply_text("Привет! Выбери команду ниже:", reply_markup=reply_markup)
+    update.message.reply_text("Привет! Нажми кнопку ниже, чтобы узнать цены:", reply_markup=reply_markup)
 
-def prices_command(update, context):
+def price_command(update, context):
     summary = get_fuel_summary()
-    context.bot.send_message(chat_id=update.effective_chat.id, text=f"⛽ Цены на топливо:\n\n{summary}")
+    context.bot.send_message(chat_id=update.effective_chat.id, text=f"⛽ Цены на топливо:
 
-def compare_command(update, context):
-    keyboard = [
-        [InlineKeyboardButton("⛽ 95", callback_data='compare_95')],
-        [InlineKeyboardButton("⛽ 98", callback_data='compare_98')],
-        [InlineKeyboardButton("⛽ Dīzeļdegviela", callback_data='compare_dīzeļdegviela')],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text("Выбери топливо для сравнения:", reply_markup=reply_markup)
-
-def button_handler(update, context):
-    query = update.callback_query
-    query.answer()
-    fuel_type = query.data.replace("compare_", "")
-    result = compare_fuel_type(fuel_type)
-    query.edit_message_text(result)
+{summary}")
 
 dispatcher.add_handler(CommandHandler("start", start_command))
-dispatcher.add_handler(CommandHandler("prices", prices_command))
-dispatcher.add_handler(CommandHandler("compare", compare_command))
-dispatcher.add_handler(CallbackQueryHandler(button_handler))
+dispatcher.add_handler(CommandHandler("cena", price_command))
 
 def send_daily_summary():
     summary = get_fuel_summary()
-    bot.send_message(chat_id=CHAT_ID, text=f"⛽ Ежедневная сводка цен:\n\n{summary}")
+    bot.send_message(chat_id=CHAT_ID, text=f"⛽ Ежедневная сводка цен:
+
+{summary}")
 
 scheduler = BackgroundScheduler()
-scheduler.add_job(send_daily_summary, "cron", hour=9, timezone=pytz.UTC)
+scheduler.add_job(send_daily_summary, "cron", hour=7, timezone=pytz.UTC)
 scheduler.start()
 
 @app.route("/", methods=["GET"])
